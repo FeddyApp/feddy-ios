@@ -166,7 +166,7 @@ Feddy.presentFeedbackSubmit(from: viewController)
 
 ## License
 
-Copyright © 2024 FeddyApp. All rights reserved.
+Copyright © 2025 FeddyApp. All rights reserved.
 
 ## Support
 
