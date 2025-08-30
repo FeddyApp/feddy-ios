@@ -1,55 +1,91 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public struct FeddyFeedbackListView: View {
     @State private var isInitialized = false
     @State private var manager: FeedbackManager?
-    @State private var selectedStatus: FeedbackStatus?
+    @State private var selectedStatus: FeedbackStatus = .inReview
     @State private var showingSubmitView = false
+    let embedInNavigationView: Bool
     
-    public init() {}
+    public init(embedInNavigationView: Bool = true) {
+        self.embedInNavigationView = embedInNavigationView
+    }
     
     public var body: some View {
-        NavigationView {
-            VStack {
-                if isInitialized, let _ = manager {
-                    statusPicker
-                    feedbackList
-                    Spacer()
-                } else {
-                    ProgressView("Initializing...")
+        Group {
+            if embedInNavigationView {
+                NavigationView {
+                    contentView
                 }
+            } else {
+                contentView
             }
-            .navigationTitle("Feedback")
-            #if os(iOS)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: { showingSubmitView = true }) {
-                        Image(systemName: "plus")
+        }
+    }
+    
+    private var contentView: some View {
+        VStack(spacing: 0) {
+            if isInitialized, let manager = manager {
+                // Segment control
+                VStack {
+                    Picker("Status", selection: $selectedStatus) {
+                        Text("In Review").tag(FeedbackStatus.inReview)
+                        Text("Planned").tag(FeedbackStatus.planned)
+                        Text("In Progress").tag(FeedbackStatus.inProgress)
+                        Text("Completed").tag(FeedbackStatus.completed)
                     }
-                    .disabled(!isInitialized)
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
+#if os(iOS)
+                .background(Color(UIColor.systemGroupedBackground))
+#else
+                .background(Color.gray.opacity(0.1))
+#endif
+                
+                // Feedback list
+                FeedbackTabView(
+                    status: selectedStatus,
+                    manager: manager
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ProgressView("Initializing...")
             }
-            #elseif os(macOS)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showingSubmitView = true }) {
-                        Image(systemName: "plus")
-                    }
-                    .disabled(!isInitialized)
-                }
+        }
+#if os(iOS)
+        .background(Color(UIColor.systemGroupedBackground))
+#else
+        .background(Color.gray.opacity(0.1))
+#endif
+        .navigationTitle("Feedback")
+#if os(iOS)
+        .navigationBarItems(
+            trailing: Button(action: { showingSubmitView = true }) {
+                Image(systemName: "plus")
             }
-            #endif
-            .sheet(isPresented: $showingSubmitView) {
-                FeddyFeedbackSubmitView()
-            }
-            .onAppear {
-                Task {
-                    await initializeManager()
-                }
-            }
-            .task {
+                .disabled(!isInitialized)
+        )
+#endif
+        .sheet(isPresented: $showingSubmitView) {
+            FeddyFeedbackSubmitView()
+        }
+        .onAppear {
+            Task {
+                await initializeManager()
                 if isInitialized, let manager = manager {
-                    await manager.loadFeedbacks()
+                    await manager.loadFeedbacks(status: selectedStatus)
+                }
+            }
+        }
+        .onChange(of: selectedStatus) { newStatus in
+            Task {
+                if let manager = manager {
+                    await manager.loadFeedbacks(status: newStatus)
                 }
             }
         }
@@ -63,134 +99,79 @@ public struct FeddyFeedbackListView: View {
         }
     }
     
-    private var statusPicker: some View {
-        Picker("Status", selection: $selectedStatus) {
-            Text("All").tag(nil as FeedbackStatus?)
-            ForEach(FeedbackStatus.allCases, id: \.self) { status in
-                Text(status.displayName).tag(status as FeedbackStatus?)
-            }
-        }
-        .pickerStyle(SegmentedPickerStyle())
-        .padding()
-        .onChange(of: selectedStatus) { status in
-            Task {
-                if let manager = manager {
-                    await manager.loadFeedbacks(status: status)
-                }
-            }
-        }
+}
+
+struct FeedbackTabView: View {
+    let status: FeedbackStatus
+    @ObservedObject var manager: FeedbackManager
+    
+    private var filteredFeedbacks: [FeedbackItem] {
+        manager.feedbacks.filter { $0.status == status }
     }
     
-    private var feedbackList: some View {
-        Group {
-            if let manager = manager {
-                if manager.isLoading {
-                    ProgressView("Loading...")
-                } else if manager.feedbacks.isEmpty {
-                    Text("No feedback available")
+    var body: some View {
+        VStack {
+            if manager.isLoading {
+                ProgressView("Loading...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredFeedbacks.isEmpty {
+                VStack {
+                    Image(systemName: "tray")
+                        .font(.system(size: 48))
+                        .foregroundColor(.gray)
+                    Text("No \(statusDisplayName.lowercased()) feedback")
+                        .font(.title2)
                         .foregroundColor(.secondary)
-                } else {
-                    List(manager.feedbacks) { feedback in
-                        FeedbackRowView(feedback: feedback) {
-                            Task {
-                                await manager.voteFeedback(feedback.id)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(filteredFeedbacks) { feedback in
+                            FeedbackRowView(feedback: feedback) {
+                                Task {
+                                    await manager.voteFeedback(feedback.id)
+                                }
                             }
                         }
                     }
-                    .refreshable {
-                        await manager.loadFeedbacks(status: selectedStatus)
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
-            } else {
-                ProgressView("Initializing...")
+                .modifier(RefreshableModifier(status: status, manager: manager))
             }
+        }
+#if os(iOS)
+        .background(Color(UIColor.systemGroupedBackground))
+#else
+        .background(Color.gray.opacity(0.1))
+#endif
+    }
+    
+    private var statusDisplayName: String {
+        switch status {
+        case .planned: return "Planned"
+        case .inReview: return "In Review"
+        case .inProgress: return "In Progress"
+        case .completed: return "Completed"
         }
     }
 }
 
-struct FeedbackRowView: View {
-    let feedback: FeedbackItem
-    let onVote: () -> Void
+struct RefreshableModifier: ViewModifier {
+    let status: FeedbackStatus
+    @ObservedObject var manager: FeedbackManager
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(feedback.title)
-                        .font(.headline)
-                    Text(feedback.description)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
+    func body(content: Content) -> some View {
+        if #available(iOS 15.0, macOS 12.0, *) {
+            content
+                .refreshable {
+                    await manager.loadFeedbacks(status: status)
                 }
-                Spacer()
-                statusBadge
-            }
-            
-            HStack {
-                typeAndPriorityLabels
-                Spacer()
-                voteButton
-            }
-        }
-        .padding(.vertical, 4)
-    }
-    
-    private var statusBadge: some View {
-        Text(feedback.status.displayName)
-            .font(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(statusColor)
-            .foregroundColor(.white)
-            .cornerRadius(4)
-    }
-    
-    private var statusColor: Color {
-        switch feedback.status {
-        case .planned:
-            return .blue
-        case .inProgress:
-            return .orange
-        case .completed:
-            return .green
-        }
-    }
-    
-    private var typeAndPriorityLabels: some View {
-        HStack {
-            Text(feedback.type.displayName)
-                .font(.caption)
-                .foregroundColor(.blue)
-            Text("•")
-                .foregroundColor(.secondary)
-            Text(feedback.priority.displayName)
-                .font(.caption)
-                .foregroundColor(priorityColor)
-        }
-    }
-    
-    private var priorityColor: Color {
-        switch feedback.priority {
-        case .low:
-            return .green
-        case .medium:
-            return .yellow
-        case .high:
-            return .orange
-        case .critical:
-            return .red
-        }
-    }
-    
-    private var voteButton: some View {
-        Button(action: onVote) {
-            HStack {
-                Image(systemName: "hand.thumbsup")
-                Text("\(feedback.voteCount)")
-            }
-            .font(.caption)
-            .foregroundColor(.blue)
+        } else {
+            // iOS 14 fallback - Can add manual refresh button or other refresh mechanisms
+            content
         }
     }
 }

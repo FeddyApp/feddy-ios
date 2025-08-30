@@ -11,10 +11,12 @@ public class FeedbackManager: ObservableObject {
     
     private var _cachedAPIClient: FeddyAPIClient?
     
-    private var apiClient: FeddyAPIClient {
+    public var apiClient: FeddyAPIClient {
         if let cached = _cachedAPIClient, cached.apiKey == Feddy.apiKey {
+            print("[FeedbackManager] 🔄 Using cached API client")
             return cached
         }
+        print("[FeedbackManager] 🆕 Creating new API client with baseURL: \(Feddy.baseURL)")
         let client = FeddyAPIClient(apiKey: Feddy.apiKey, baseURL: Feddy.baseURL)
         _cachedAPIClient = client
         return client
@@ -24,22 +26,37 @@ public class FeedbackManager: ObservableObject {
     
     @MainActor
     public func loadFeedbacks(status: FeedbackStatus? = nil) async {
+        print("[FeedbackManager] 🔄 Starting to load feedbacks...")
+        print("[FeedbackManager] 🔧 Feddy.isConfigured: \(Feddy.isConfigured)")
+        print("[FeedbackManager] 🔧 Feddy.apiKey: \(Feddy.apiKey.isEmpty ? "EMPTY" : "SET")")
+        print("[FeedbackManager] 🔧 Feddy.baseURL: \(Feddy.baseURL)")
+        
         guard Feddy.isConfigured else {
+            print("[FeedbackManager] ❌ Feddy not configured, setting invalid API key error")
             error = FeddyAPIError.invalidAPIKey
             return
         }
         
+        print("[FeedbackManager] 🔄 Setting isLoading = true")
         isLoading = true
         error = nil
         
         do {
-            let response = try await apiClient.getFeedbacks(status: status)
+            let user = Feddy.user
+            print("[FeedbackManager] 📡 Calling API to get feedbacks with userId for vote status...")
+            print("[FeedbackManager] 📡 Using userId: \(user.userId ?? "nil")")
+            let response = try await apiClient.getFeedbacks(status: status, userId: user.userId)
+            print("[FeedbackManager] ✅ API call successful, received \(response.feedbacks.count) feedbacks, total: \(response.total)")
             feedbacks = response.feedbacks
+            print("[FeedbackManager] 📝 Updated feedbacks array with \(feedbacks.count) items")
         } catch {
+            print("[FeedbackManager] ❌ Error loading feedbacks: \(error)")
             self.error = error
         }
         
+        print("[FeedbackManager] 🔄 Setting isLoading = false")
         isLoading = false
+        print("[FeedbackManager] ✅ Load feedbacks completed, isLoading = \(isLoading)")
     }
     
     @MainActor
@@ -66,14 +83,15 @@ public class FeedbackManager: ObservableObject {
         let metadata = FeedbackSubmission.FeedbackMetadata(
             userId: user.userId ?? "anonymous",
             platform: getPlatform(),
-            appVersion: getAppVersion()
+            appVersion: getAppVersion(),
+            sdkVersion: Feddy.sdkVersion
         )
         
         let submission = FeedbackSubmission(
             title: title,
             description: description,
-            type: type.rawValue,
-            priority: priority.rawValue,
+            type: type.apiValue,
+            priority: priority.apiValue,
             userEmail: user.email,
             userName: user.name,
             userAgent: nil,
@@ -84,7 +102,10 @@ public class FeedbackManager: ObservableObject {
         )
         
         do {
+            print("[FeedbackManager] 📡 Submitting feedback with priority: \(priority.displayName)")
+            print("[FeedbackManager] 📡 SDK Version: \(Feddy.sdkVersion)")
             _ = try await apiClient.submitFeedback(submission)
+            print("[FeedbackManager] ✅ Feedback submitted successfully")
             await loadFeedbacks()
             isLoading = false
             return true
@@ -97,31 +118,55 @@ public class FeedbackManager: ObservableObject {
     
     @MainActor
     public func voteFeedback(_ feedbackId: String) async -> Bool {
+        print("[FeedbackManager] 🗳️ Starting to vote for feedback: \(feedbackId)")
+        print("[FeedbackManager] 🔧 Feddy.isConfigured: \(Feddy.isConfigured)")
+        
         guard Feddy.isConfigured else {
+            print("[FeedbackManager] ❌ Feddy not configured for voting")
             error = FeddyAPIError.invalidAPIKey
             return false
         }
         
         let user = Feddy.user
-        guard let email = user.email else {
+        print("[FeedbackManager] 👤 User info:")
+        print("[FeedbackManager] 👤   - userId: \(user.userId ?? "nil")")
+        print("[FeedbackManager] 👤   - email: \(user.email ?? "nil")")
+        print("[FeedbackManager] 👤   - name: \(user.name ?? "nil")")
+        
+        guard let userId = user.userId else {
+            print("[FeedbackManager] ❌ User ID is nil, cannot vote")
             error = FeddyAPIError.invalidAPIKey
             return false
         }
         
         let voteRequest = VoteRequest(
             feedbackId: feedbackId,
-            voterEmail: email,
-            voterName: user.name
+            userId: userId,
+            userName: user.name,
+            userEmail: user.email
         )
+        print("[FeedbackManager] 📝 Vote request created:")
+        print("[FeedbackManager] 📝   - feedbackId: \(voteRequest.feedbackId)")
+        print("[FeedbackManager] 📝   - userId: \(voteRequest.userId)")
+        print("[FeedbackManager] 📝   - userName: \(voteRequest.userName ?? "nil")")
+        print("[FeedbackManager] 📝   - userEmail: \(voteRequest.userEmail ?? "nil")")
         
         do {
+            print("[FeedbackManager] 📡 Calling API to submit vote...")
             _ = try await apiClient.voteFeedback(voteRequest)
+            print("[FeedbackManager] ✅ Vote submitted successfully")
+            print("[FeedbackManager] 🔄 Reloading feedbacks after vote...")
             await loadFeedbacks()
             return true
         } catch {
+            print("[FeedbackManager] ❌ Error submitting vote: \(error)")
             self.error = error
             return false
         }
+    }
+    
+    public func getUserId() -> String {
+        return Feddy.user.userId ?? "anonymous_user"
     }
     
     @MainActor

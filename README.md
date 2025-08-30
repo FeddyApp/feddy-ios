@@ -40,11 +40,13 @@ targets: [
 
 ### 1. Configure the SDK
 
+#### Basic Configuration
+
 ```swift
 import Feddy
 
-// Configure with your API key
-Feddy.configure(apiKey: "your-api-key-here")
+// Basic configuration
+Feddy.configure(apiKey: "feddy_4ffa601fd3249c83a41287f9e2b8c172")
 
 // Optionally set user information
 Feddy.updateUser(
@@ -52,6 +54,37 @@ Feddy.updateUser(
     email: "user@example.com", 
     name: "John Doe"
 )
+```
+
+#### Configuration with Debug Logging
+
+```swift
+import Feddy
+
+// Enable debug logging for development
+Feddy.configure(
+    apiKey: "feddy_4ffa601fd3249c83a41287f9e2b8c172",
+    enableDebugLogging: true
+)
+
+// In your AppDelegate
+@main
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        
+        // Configure Feddy with debug logging enabled for development builds
+        #if DEBUG
+        Feddy.configure(
+            apiKey: "feddy_4ffa601fd3249c83a41287f9e2b8c172",
+            enableDebugLogging: true
+        )
+        #else
+        Feddy.configure(apiKey: "feddy_4ffa601fd3249c83a41287f9e2b8c172")
+        #endif
+        
+        return true
+    }
+}
 ```
 
 ### 2. SwiftUI Integration
@@ -116,8 +149,14 @@ class ViewController: UIViewController {
 ### Configuration
 
 ```swift
-// Configure SDK
-Feddy.configure(apiKey: "your-api-key")
+// Basic configuration
+Feddy.configure(apiKey: "feddy_4ffa601fd3249c83a41287f9e2b8c172")
+
+// Configuration with debug logging
+Feddy.configure(
+    apiKey: "feddy_4ffa601fd3249c83a41287f9e2b8c172",
+    enableDebugLogging: true
+)
 
 // Update user information
 Feddy.updateUser(userId: "123", email: "user@example.com", name: "John")
@@ -125,6 +164,11 @@ Feddy.updateUser(userId: "123", email: "user@example.com", name: "John")
 // Check configuration status
 if Feddy.isConfigured {
     // SDK is ready to use
+}
+
+// Check if SDK is fully initialized
+if Feddy.isInitialized {
+    // SDK has completed initialization
 }
 ```
 
@@ -147,6 +191,60 @@ Feddy.presentFeedbackList(from: viewController)
 // Present feedback submission
 Feddy.presentFeedbackSubmit(from: viewController)
 ```
+
+## Debug & Troubleshooting
+
+### Debug Logging
+
+The Feddy iOS SDK includes basic debug logging to help you troubleshoot integration issues during development.
+
+#### Example Debug Output
+
+When debug logging is enabled, you'll see output like this in Xcode console:
+
+```
+🚀 [Feddy] Starting SDK configuration...
+✅ [Feddy] SDK configured successfully
+📊 [Feddy] Configuration details:
+  - API Key: feddy_4ffa601fd...
+  - Base URL: https://feddy.app
+  - Debug Logging: true
+👤 [Feddy] Current user state:
+  - User ID: user123
+  - Email: user@example.com
+```
+
+#### Common Debug Scenarios
+
+**1. API Key Issues**
+```swift
+⚠️ [Feddy] API key format warning: Expected key to start with 'feddy_', got: abc123...
+```
+
+**2. Configuration Issues**
+```swift
+⚠️ [Feddy] Attempting to update user before SDK configuration. Call Feddy.configure() first.
+❌ [Feddy] Cannot create FeedbackListView: SDK not configured. Call Feddy.configure() first.
+```
+
+### Best Practices
+
+1. **Enable debug logging only in DEBUG builds**:
+   ```swift
+   #if DEBUG
+   Feddy.configure(apiKey: "your-key", enableDebugLogging: true)
+   #else
+   Feddy.configure(apiKey: "your-key")
+   #endif
+   ```
+
+2. **Check initialization status before using SDK**:
+   ```swift
+   guard Feddy.isConfigured && Feddy.isInitialized else {
+       print("Feddy SDK not ready")
+       return
+   }
+   ```
 
 ## Version History
 
