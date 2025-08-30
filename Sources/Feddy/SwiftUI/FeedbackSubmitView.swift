@@ -10,8 +10,8 @@ public struct FeddyFeedbackSubmitView: View {
     
     @State private var title = ""
     @State private var description = ""
+    @State private var email = ""
     @State private var selectedType = FeedbackType.bug
-    @State private var selectedPriority = FeedbackPriority.medium
     @State private var screenshot: Any?
     @State private var isShowingImagePicker = false
     @State private var isSubmitting = false
@@ -31,51 +31,39 @@ public struct FeddyFeedbackSubmitView: View {
             }
             .navigationTitle("Submit Feedback")
             #if os(iOS)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                },
+                trailing: Button("Submit") {
+                    submitFeedback()
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Submit") {
-                        submitFeedback()
-                    }
                     .disabled(title.isEmpty || description.isEmpty || isSubmitting || !isInitialized)
-                }
-            }
-            #elseif os(macOS)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") {
-                        submitFeedback()
-                    }
-                    .disabled(title.isEmpty || description.isEmpty || isSubmitting || !isInitialized)
-                }
-            }
+            )
             #endif
             #if canImport(UIKit)
             .sheet(isPresented: $isShowingImagePicker) {
                 ImagePicker(selectedImage: $screenshot)
             }
             #endif
-            .alert("Feedback", isPresented: $showingAlert) {
-                Button("OK") {
-                    if alertMessage.contains("success") {
-                        presentationMode.wrappedValue.dismiss()
+            .alert(isPresented: $showingAlert) {
+                Alert(
+                    title: Text("Feedback"),
+                    message: Text(alertMessage),
+                    dismissButton: .default(Text("OK")) {
+                        if alertMessage.contains("success") {
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
-                }
-            } message: {
-                Text(alertMessage)
+                )
             }
             .onAppear {
                 Task {
                     await initializeManager()
+                    // Load saved email from user settings
+                    email = Feddy.user.email ?? ""
                 }
             }
         }
@@ -91,64 +79,104 @@ public struct FeddyFeedbackSubmitView: View {
     
     private var formContent: some View {
         Form {
-                Section("Feedback Details") {
-                    TextField("Title", text: $title)
-                    TextField("Description", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
-                }
-                
-                Section("Category") {
-                    Picker("Type", selection: $selectedType) {
+            Section(header:
+                Text("CATEGORY")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            ) {
+                HStack {
+                    Text("Type")
+                    Spacer()
+                    Picker("", selection: $selectedType) {
                         ForEach(FeedbackType.allCases, id: \.self) { type in
                             Text(type.displayName).tag(type)
                         }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    Picker("Priority", selection: $selectedPriority) {
-                        ForEach(FeedbackPriority.allCases, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority)
-                        }
-                    }
+                    .pickerStyle(MenuPickerStyle())
                 }
-                
-                #if canImport(UIKit)
-                Section("Screenshot (Optional)") {
-                    if let screenshot = screenshot as? UIImage {
-                        Image(uiImage: screenshot)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(height: 200)
-                        Button("Remove Screenshot") {
-                            self.screenshot = nil
-                        }
-                        .foregroundColor(.red)
-                    } else {
-                        Button("Add Screenshot") {
-                            isShowingImagePicker = true
-                        }
-                    }
+            }
+            
+            Section(header:
+                Text("FEEDBACK DETAILS")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            ) {
+                TextField("Title", text: $title)
+                #if os(iOS)
+                if #available(iOS 16.0, *) {
+                    TextField("Description", text: $description, axis: .vertical)
+                        .lineLimit(3...6)
+                } else {
+                    TextField("Description", text: $description)
+                        .lineLimit(3)
                 }
+                #else
+                TextField("Description", text: $description)
+                    .lineLimit(3)
                 #endif
             }
+            
+            Section(header:
+                Text("Email (OPTIONAL)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            ) {
+                TextField("Email", text: $email)
+                    #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .textContentType(.emailAddress)
+                    #endif
+            }
+            
+//            #if canImport(UIKit)
+//            Section(header: Text("Screenshot (Optional)")) {
+//                if let screenshot = screenshot as? UIImage {
+//                    Image(uiImage: screenshot)
+//                        .resizable()
+//                        .aspectRatio(contentMode: .fit)
+//                        .frame(height: 200)
+//                    Button("Remove Screenshot") {
+//                        self.screenshot = nil
+//                    }
+//                    .foregroundColor(.red)
+//                } else {
+//                    Button("Add Screenshot") {
+//                        isShowingImagePicker = true
+//                    }
+//                }
+//            }
+//            #endif
+        }
     }
     
     private func submitFeedback() {
         guard let manager = manager else { return }
         isSubmitting = true
         
+        // Save email to user settings if provided
+        if !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Feddy.updateUser(email: email.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        
         Task {
             let success = await manager.submitFeedback(
                 title: title,
                 description: description,
                 type: selectedType,
-                priority: selectedPriority,
+                priority: .medium,
                 screenshot: screenshot
             )
             
             isSubmitting = false
             if success {
                 alertMessage = "Feedback submitted successfully!"
+                // Clear input fields after successful submission, but keep email
+                title = ""
+                description = ""
+                selectedType = .bug
+                screenshot = nil
+                // Don't clear email as it's saved in user settings
             } else {
                 alertMessage = manager.error?.localizedDescription ?? "Failed to submit feedback"
             }
@@ -199,3 +227,4 @@ struct ImagePicker: UIViewControllerRepresentable {
 #Preview {
     FeddyFeedbackSubmitView()
 }
+
