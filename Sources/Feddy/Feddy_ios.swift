@@ -11,8 +11,7 @@ public struct Feddy {
     
     // Simple static configuration - fixed API URL
     @MainActor private static var _apiKey: String = ""
-    // private static let _baseURL: String = "https://feddy.app"
-    private static let _baseURL: String = "http://localhost:3000"
+    private static let _baseURL: String = "https://feddy.app"
     @MainActor private static var _user = FeddyUser()
     @MainActor private static var _isInitialized: Bool = false
     

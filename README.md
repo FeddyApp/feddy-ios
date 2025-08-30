@@ -12,8 +12,8 @@ Add Feddy to your project using Swift Package Manager:
 1. In Xcode, go to **File** → **Add Package Dependencies**
 2. Enter the repository URL: `https://github.com/FeddyApp/feddy-ios.git`
 3. Choose your version requirements:
-   - **Up to Next Major**: `1.0.0` (Recommended)
-   - **Exact Version**: `1.0.0`
+   - **Up to Next Major**: `1.0.2` (Recommended)
+   - **Exact Version**: `1.0.2`
    - **Branch**: `main` (Latest development)
 
 #### Package.swift
@@ -21,7 +21,7 @@ Add Feddy as a dependency in your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/FeddyApp/feddy-ios.git", from: "1.0.0")
+    .package(url: "https://github.com/FeddyApp/feddy-ios.git", from: "1.0.2")
 ]
 ```
 
@@ -139,7 +139,9 @@ class ViewController: UIViewController {
 - ✅ **Feedback Types**: Bug reports, feature requests, improvements, questions
 - ✅ **Priority Levels**: Low, medium, high, critical
 - ✅ **Voting System**: Users can vote on feedback
-- ✅ **Screenshot Support**: Attach screenshots to feedback
+- ✅ **Email Collection**: Optional email input with automatic persistence
+- ✅ **User Management**: Persistent user data with UserDefaults integration
+- ✅ **Screenshot Support**: Attach screenshots to feedback (iOS)
 - ✅ **Device Info**: Automatic device and app version collection
 - ✅ **Async/Await**: Modern Swift concurrency support
 - ✅ **Thread Safe**: Full Sendable protocol compliance
@@ -158,8 +160,14 @@ Feddy.configure(
     enableDebugLogging: true
 )
 
-// Update user information
+// Update user information (all parameters are optional)
 Feddy.updateUser(userId: "123", email: "user@example.com", name: "John")
+
+// Update only email
+Feddy.updateUser(email: "user@example.com")
+
+// Update only name
+Feddy.updateUser(name: "John Doe")
 
 // Check configuration status
 if Feddy.isConfigured {
@@ -191,6 +199,33 @@ Feddy.presentFeedbackList(from: viewController)
 // Present feedback submission
 Feddy.presentFeedbackSubmit(from: viewController)
 ```
+
+### User Data Management
+
+The SDK automatically manages user data with persistent storage:
+
+```swift
+// Set user information (persists automatically)
+Feddy.updateUser(
+    userId: "user123",
+    email: "user@example.com", 
+    name: "John Doe"
+)
+
+// Check if user data exists
+if Feddy.hasPersistentUserData() {
+    print("User data is saved")
+}
+
+// Reset all user data (useful for logout)
+Feddy.resetUserData()
+```
+
+**Email Collection Feature:**
+- Users can optionally enter their email in the feedback submission form
+- Email is automatically saved to user settings when provided
+- Saved email is pre-filled in future feedback submissions
+- Email persists across app sessions using UserDefaults
 
 ## Debug & Troubleshooting
 
@@ -247,6 +282,20 @@ When debug logging is enabled, you'll see output like this in Xcode console:
    ```
 
 ## Version History
+
+### v1.0.2 (Latest)
+- Added optional email input to feedback submission form
+- Enhanced persistent user management with automatic email saving
+- Improved feedback list UI with vote functionality and status display
+- Added reusable SwiftUI components for better code organization
+- Enhanced API client with better error handling and logging
+- Improved cross-platform compatibility (iOS/macOS)
+- Better device info collection and metadata handling
+- Comprehensive UserDefaults integration for user persistence
+
+### v1.0.1
+- Bug fixes and performance improvements
+- Enhanced error handling
 
 ### v1.0.0
 - Initial release
