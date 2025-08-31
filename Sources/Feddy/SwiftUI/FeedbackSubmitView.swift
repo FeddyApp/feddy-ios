@@ -97,23 +97,66 @@ public struct FeddyFeedbackSubmitView: View {
             }
             
             Section(header:
-                Text("FEEDBACK DETAILS")
+                Text("TITLE")
                     .font(.caption)
                     .foregroundColor(.secondary)
             ) {
-                TextField("Title", text: $title)
-                #if os(iOS)
-                if #available(iOS 16.0, *) {
-                    TextField("Description", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
-                } else {
-                    TextField("Description", text: $description)
-                        .lineLimit(3)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Enter feedback title", text: $title)
+                        .onChange(of: title) { newValue in
+                            if newValue.count > 50 {
+                                title = String(newValue.prefix(50))
+                            }
+                        }
+                    HStack {
+                        Spacer()
+                        Text("\(title.count)/50")
+                            .font(.caption)
+                            .foregroundColor(title.count > 40 ? .orange : .secondary)
+                    }
                 }
-                #else
-                TextField("Description", text: $description)
-                    .lineLimit(3)
-                #endif
+            }
+            
+            Section(header:
+                Text("DESCRIPTION")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            ) {
+                VStack(alignment: .leading, spacing: 4) {
+                    #if os(iOS)
+                    if #available(iOS 16.0, *) {
+                        TextField("Describe your feedback in detail", text: $description, axis: .vertical)
+                            .lineLimit(3...6)
+                            .onChange(of: description) { newValue in
+                                if newValue.count > 500 {
+                                    description = String(newValue.prefix(500))
+                                }
+                            }
+                    } else {
+                        TextField("Describe your feedback in detail", text: $description)
+                            .lineLimit(3)
+                            .onChange(of: description) { newValue in
+                                if newValue.count > 500 {
+                                    description = String(newValue.prefix(500))
+                                }
+                            }
+                    }
+                    #else
+                    TextField("Describe your feedback in detail", text: $description)
+                        .lineLimit(3)
+                        .onChange(of: description) { newValue in
+                            if newValue.count > 500 {
+                                description = String(newValue.prefix(500))
+                            }
+                        }
+                    #endif
+                    HStack {
+                        Spacer()
+                        Text("\(description.count)/500")
+                            .font(.caption)
+                            .foregroundColor(description.count > 450 ? .orange : .secondary)
+                    }
+                }
             }
             
             Section(header:
@@ -128,27 +171,21 @@ public struct FeddyFeedbackSubmitView: View {
                     .textContentType(.emailAddress)
                     #endif
             }
-            
-//            #if canImport(UIKit)
-//            Section(header: Text("Screenshot (Optional)")) {
-//                if let screenshot = screenshot as? UIImage {
-//                    Image(uiImage: screenshot)
-//                        .resizable()
-//                        .aspectRatio(contentMode: .fit)
-//                        .frame(height: 200)
-//                    Button("Remove Screenshot") {
-//                        self.screenshot = nil
-//                    }
-//                    .foregroundColor(.red)
-//                } else {
-//                    Button("Add Screenshot") {
-//                        isShowingImagePicker = true
-//                    }
-//                }
-//            }
-//            #endif
+        }
+        .onTapGesture {
+            hideKeyboard()
         }
     }
+    
+    #if canImport(UIKit)
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    #else
+    private func hideKeyboard() {
+        // No-op for non-UIKit platforms
+    }
+    #endif
     
     private func submitFeedback() {
         guard let manager = manager else { return }

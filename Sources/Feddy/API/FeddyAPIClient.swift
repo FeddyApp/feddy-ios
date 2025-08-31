@@ -156,8 +156,7 @@ public final class FeddyAPIClient: Sendable {
             print("[FeddyAPI] ❌ Invalid URL constructed")
             throw FeddyAPIError.invalidURL
         }
-        
-        print("[FeddyAPI] 🌐 Request URL: \(url.absoluteString)")
+    
         
         let response: APIResponse<FeedbackListResponse> = try await performRequest(
             url: url,
@@ -205,8 +204,7 @@ public final class FeddyAPIClient: Sendable {
             print("[FeddyAPI] ❌ Invalid URL for vote endpoint")
             throw FeddyAPIError.invalidURL
         }
-        
-        print("[FeddyAPI] 🌐 Vote request URL: \(url.absoluteString)")
+    
         
         let response: APIResponse<VoteResponse> = try await performRequest(
             url: url,
@@ -247,8 +245,6 @@ public final class FeddyAPIClient: Sendable {
             throw FeddyAPIError.invalidURL
         }
         
-        print("[FeddyAPI] 🌐 Comments request URL: \(url.absoluteString)")
-        
         let response: APIResponse<CommentListResponse> = try await performRequest(
             url: url,
             method: .GET
@@ -276,8 +272,6 @@ public final class FeddyAPIClient: Sendable {
             print("[FeddyAPI] ❌ Invalid URL for add comment endpoint")
             throw FeddyAPIError.invalidURL
         }
-        
-        print("[FeddyAPI] 🌐 Add comment request URL: \(url.absoluteString)")
         
         let response: APIResponse<CommentResponse> = try await performRequest(
             url: url,
